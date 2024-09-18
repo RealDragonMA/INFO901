@@ -1,10 +1,9 @@
 package fr.usmb.process;
 
-import fr.usmb.EventBusService;
-import fr.usmb.token.TokenState;
-import lombok.AccessLevel;
+import fr.usmb.messages.Message;
 import lombok.Getter;
-import lombok.Setter;
+
+import java.util.List;
 
 /**
  * This class represents a process that runs in a separate thread and communicates with other
@@ -12,34 +11,17 @@ import lombok.Setter;
  */
 public class Process implements Runnable {
 
-    public static final int maxNbProcess = 3;
-    private static int nbProcess = 0;
-
-    @Getter(AccessLevel.PACKAGE)
-    private final Thread thread;
-
-    @Getter(AccessLevel.PACKAGE)
-    private EventBusService bus;
-
-    @Getter
-    @Setter(AccessLevel.PACKAGE)
-    private TokenState state;
+    private Thread thread;
+    private boolean alive;
+    private boolean dead;
 
     @Getter
     private final Communicator communicator;
 
     @Getter
-    private final int id = Process.nbProcess++;
-
-    @Getter
     protected ProcessLogger logger;
 
-    private boolean alive;
-    private boolean dead;
-
     public Process(String name) {
-        this.bus = EventBusService.getInstance();
-        this.bus.registerSubscriber(this);
 
         this.thread = new Thread(this);
         this.thread.setName(name);
@@ -47,11 +29,9 @@ public class Process implements Runnable {
         this.alive = true;
         this.dead = false;
 
-        this.state = TokenState.NULL;
-
         this.logger = new ProcessLogger(this);
 
-        this.communicator = new Communicator(this, new LamportClock(), this.logger);
+        this.communicator = new Communicator(this, this.logger);
 
         this.thread.start();
     }
@@ -62,34 +42,84 @@ public class Process implements Runnable {
      * It will run until the alive flag is set to false.
      */
     public void run() {
-        this.logger.info(Thread.currentThread().getName() + " id: " + this.id + " started !");
+        int loop = 0;
+
+        System.out.println(Thread.currentThread().getName() + " id :" + this.getId());
+
         while (this.alive) {
             try {
                 Thread.sleep(500);
-                if (Thread.currentThread().getName().equals("P1")) {
-                    System.out.println();
+
+                if (this.getName().equals("P0")) {
+                    this.communicator.sendTo("j'appelle 2 et je te recontacte après", 1);
+
+                    this.communicator.sendToSync("J'ai laissé un message à 2, je le rappellerai après, on se sychronise tous et on attaque la partie ?", 2);
+                    this.communicator.recevFromSync(msg, 2);
+
+                    this.communicator.sendToSync("2 est OK pour jouer, on se synchronise et c'est parti!", 1);
+
+                    this.communicator.synchronize();
+
+                    this.communicator.requestSC();
+                    if (this.getMailBox().isEmpty()) {
+                        System.out.println("Catched !");
+                        this.communicator.broadcast("J'ai gagné !!!");
+                    } else {
+                        msg = this.communicator.mailbox.getMsg();
+                        System.out.println(str(msg.getSender()) + " à eu le jeton en premier");
+                    }
+                    this.communicator.releaseSC();
+
                 }
+                if (this.getName() == "P1") {
+                    if (!this.getMailBox().isEmpty()) {
+                        this.communicator.mailbox.getMessage();
+                        this.communicator.recevFromSync(msg, 0);
+
+                        this.communicator.synchronize();
+
+                        this.communicator.requestSC();
+                        if (this.communicator.mailbox.isEmpty()) {
+                            print("Catched !");
+                            this.communicator.broadcast("J'ai gagné !!!");
+                        } else {
+                            msg = this.communicator.mailbox.getMsg();
+                            print(str(msg.getSender()) + " à eu le jeton en premier");
+                        }
+                        this.communicator.releaseSC();
+                    }
+                }
+                if (this.getName() == "P2") {
+                    this.communicator.recevFromSync(msg, 0);
+                    this.communicator.sendToSync("OK", 0);
+
+                    this.communicator.synchronize();
+
+                    this.communicator.requestSC();
+                    if (this.communicator.mailbox.isEmpty()) {
+                        print("Catched !");
+                        this.communicator.broadcast("J'ai gagné !!!");
+                    } else {
+                        msg = this.communicator.mailbox.getMsg();
+                        print(str(msg.getSender()) + " à eu le jeton en premier");
+                    }
+                    this.communicator.releaseSC();
+                }
+
+
             } catch (Exception e) {
-                this.logger.error("Error while sleeping", e);
-                Thread.currentThread().interrupt();
+                e.printStackTrace();
             }
+            loop++;
         }
-        cleanup();
-        this.logger.info(Thread.currentThread().getName() + " stopped");
+
+        System.out.println(Thread.currentThread().getName() + " stopped");
+        this.dead = true;
     }
 
     // =====================================
     //             Process Logic
     // =====================================
-
-    /**
-     * Clean up resources and unregister the process from the EventBus.
-     */
-    private void cleanup() {
-        this.bus.unRegisterSubscriber(this);
-        this.bus = null;
-        this.dead = true;
-    }
 
     /**
      * Wait until the process is fully stopped (has reached the dead state).
@@ -99,7 +129,6 @@ public class Process implements Runnable {
             try {
                 Thread.sleep(500);
             } catch (Exception e) {
-                this.logger.error("Error while sleeping", e);
                 Thread.currentThread().interrupt();
             }
         }
@@ -110,10 +139,21 @@ public class Process implements Runnable {
      */
     public void stop() {
         this.alive = false;
-        this.logger.info("Process stopped");
     }
+
+    // =====================================
+    //                Utils
+    // =====================================
 
     public String getName() {
         return this.thread.getName();
+    }
+
+    public List<Message<?>> getMailBox() {
+        return this.communicator.getMailBox();
+    }
+
+    public int getId() {
+        return this.communicator.getId();
     }
 }

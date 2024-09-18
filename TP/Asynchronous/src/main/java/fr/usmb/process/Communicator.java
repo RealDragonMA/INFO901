@@ -1,18 +1,35 @@
 package fr.usmb.process;
 
 import com.google.common.eventbus.Subscribe;
+import fr.usmb.EventBusService;
 import fr.usmb.messages.BroadcastMessage;
 import fr.usmb.messages.DedicatedMessage;
 import fr.usmb.messages.Message;
 import fr.usmb.messages.TokenMessage;
 import fr.usmb.token.TokenState;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 
 @Getter
 public class Communicator {
+
+    @Getter
+    private final int id = Communicator.nbProcess++;
+
+    public static final int maxNbProcess = 3;
+    private static int nbProcess = 0;
+
+    @Getter(AccessLevel.PACKAGE)
+    private final EventBusService bus;
+
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private TokenState state;
 
     private final Process process;
     private final ProcessLogger logger;
@@ -20,19 +37,28 @@ public class Communicator {
     private final LamportClock clock;
     private final Semaphore semaphore;
 
-    private List<Message<?>> mailBox;
+    @Getter
+    private final List<Message<?>> mailBox;
 
-    public Communicator(Process process, LamportClock clock, ProcessLogger logger) {
+    public Communicator(Process process, ProcessLogger logger) {
+
         this.process = process;
-        this.clock = clock;
+        this.clock = new LamportClock();
         this.logger = logger;
         this.semaphore = new Semaphore(1);
+        this.mailBox = new ArrayList<>();
+
+        this.bus = EventBusService.getInstance();
+        this.bus.registerSubscriber(this);
+
+        this.state = TokenState.NULL;
+
     }
 
     /**
      * Increment the clock.
      */
-    public void incClock(){
+    public void incClock() {
         try {
             this.semaphore.acquire();
             this.clock.increment();
@@ -46,9 +72,10 @@ public class Communicator {
 
     /**
      * Get the clock.
+     *
      * @return {@link int} The clock.
      */
-    public int getClock(){
+    public int getClock() {
         try {
             this.semaphore.acquire();
             return this.clock.get();
@@ -66,23 +93,24 @@ public class Communicator {
      * Envoie un message à tous les autres processus (broadcast).
      * Seuls les messages non système modifient l'horloge de Lamport.
      *
-     * @param message L'objet à diffuser
+     * @param data L'objet à diffuser
      */
-    public <T> void broadcast(Message<T> message, boolean isSystemMessage) {
+    public <T> void broadcast(T data, boolean isSystemMessage) {
         try {
+
+            BroadcastMessage<T> broadcastMessage = new BroadcastMessage<>(data);
 
             if (!isSystemMessage) {
                 this.semaphore.acquire();
                 this.clock.increment();
-                message.setTimestamp(clock.get());
+                broadcastMessage.setTimestamp(clock.get());
             }
 
-            BroadcastMessage<?> broadcastMessage = new BroadcastMessage<>(message.getMessage());
-            broadcastMessage.setTimestamp(message.getTimestamp());
-            broadcastMessage.setSender(this.process.getThread().getName());
+            // Creating the broadcast message
+            broadcastMessage.setSender(this.process.getName());
 
-            this.logger.info("Broadcasting message: " + message.getMessage());
-            this.process.getBus().postEvent(broadcastMessage);
+            this.logger.info("Broadcasting message: " + broadcastMessage.getMessage());
+            this.bus.postEvent(broadcastMessage);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -95,53 +123,38 @@ public class Communicator {
 
     /**
      * Envoie un message à un processus spécifique.
-     * @param message {@link Message} Le message à envoyer.
+     *
+     * @param data {@link Message} Le message à envoyer.
      */
-    public <T> void broadcast(Message<T> message){
-        broadcast(message, false);
+    public <T> void broadcast(T data) {
+        broadcast(data, false);
     }
 
     /**
      * Send a message to a specific process.
      *
-     * @param to      {@link String} The name of the process to send the message to.
-     * @param message {@link Message} The message to send.
-     * @param <T>     {@link T} The type of the message.
-     */
-    public <T> void sendTo(String to, Message<T> message) {
-        clock.increment();
-        DedicatedMessage<T> dedicatedMessage = new DedicatedMessage<>(message.getMessage());
-        // Init the timestamp of the message
-        dedicatedMessage.setTimestamp(clock.get());
-        // Init the sender of the message
-        dedicatedMessage.setSender(this.process.getThread().getName());
-        // Init the receiver of the message
-        dedicatedMessage.setReceiver(to);
-        this.logger.info("Sending message: " + message.getMessage() + " to " + to);
-        this.process.getBus().postEvent(dedicatedMessage);
-    }
-
-    /**
-     * Send a message to a specific process.
-     *
-     * @param to      {@link String} The name of the process to send the message to.
-     * @param message {@link Message} The message to send.
+     * @param to              {@link String} The name of the process to send the message to.
+     * @param data            {@link Message} The message to send.
      * @param isSystemMessage {@link boolean} True if the message is a system message, false otherwise.
-     * @param <T>     {@link T} The type of the message.
+     * @param <T>             {@link T} The type of the message.
      */
-    public <T> void sendTo(String to, Message<T> message, boolean isSystemMessage) {
+    public <T> void sendTo(String to, T data, boolean isSystemMessage) {
         try {
+
+            DedicatedMessage<T> dedicatedMessage = new DedicatedMessage<>(data);
+
             if (!isSystemMessage) {
                 this.semaphore.acquire();
                 this.clock.increment();
-                message.setTimestamp(clock.get());
+                dedicatedMessage.setTimestamp(clock.get());
             }
-            DedicatedMessage<T> dedicatedMessage = new DedicatedMessage<>(message.getMessage());
-            dedicatedMessage.setTimestamp(message.getTimestamp());
-            dedicatedMessage.setSender(this.process.getThread().getName());
+            // Creating the dedicated dedicatedMessage
+            dedicatedMessage.setTimestamp(dedicatedMessage.getTimestamp());
+            dedicatedMessage.setSender(this.process.getName());
             dedicatedMessage.setReceiver(to);
-            this.logger.info("Sending message: " + message.getMessage() + " to " + to);
-            this.process.getBus().postEvent(dedicatedMessage);
+
+            this.logger.info("Sending dedicatedMessage: " + dedicatedMessage.getMessage() + " to " + to);
+            this.bus.postEvent(dedicatedMessage);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
@@ -153,12 +166,13 @@ public class Communicator {
 
     /**
      * Send a message to a specific process.
-     * @param to {@link String} The name of the process to send the message to.
-     * @param message {@link Message} The message to send.
-     * @param <T> 
+     *
+     * @param to   {@link String} The name of the process to send the message to.
+     * @param data {@link Message} The message to send.
+     * @param <T>  {@link T} The type of the message.
      */
-    public <T> void sendTo(String to, Message<T> message) {
-        sendTo(to, message, false);
+    public <T> void sendTo(String to, T data) {
+        sendTo(to, data, false);
     }
 
     /**
@@ -167,10 +181,10 @@ public class Communicator {
      * @param tokenMessage {@link TokenMessage} The token message to send.
      */
     private void sendTokenToNextProcess(TokenMessage<?> tokenMessage) {
-        String nextProcess = "P" + (this.getProcess().getId() + 1) % Process.maxNbProcess;
+        String nextProcess = "P" + (this.getProcess().getId() + 1) % Communicator.maxNbProcess;
         tokenMessage.getToken().setHolder(nextProcess);
         sendTo(nextProcess, tokenMessage);
-        this.getProcess().getBus().postEvent(tokenMessage);
+        this.bus.postEvent(tokenMessage);
     }
 
     /**
@@ -182,6 +196,7 @@ public class Communicator {
     private void onBroadcast(BroadcastMessage<?> message) {
         clock.update(message.getTimestamp());
         if (message.getSender().equalsIgnoreCase(this.process.getName())) return;
+        this.mailBox.add(message);
         this.logger.info("Receiving broadcast message: " + message.getMessage() + " from " + message.getSender());
     }
 
@@ -194,6 +209,7 @@ public class Communicator {
     private void onReceive(DedicatedMessage<?> message) {
         clock.update(message.getTimestamp());
         if (!message.getReceiver().equalsIgnoreCase(this.process.getName())) return;
+        this.mailBox.add(message);
         this.logger.info("Receiving message: " + message.getMessage() + " from " + message.getSender());
     }
 
@@ -205,9 +221,9 @@ public class Communicator {
         clock.update(tokenMessage.getTimestamp());
         if (!tokenMessage.getToken().getHolder().equalsIgnoreCase(this.process.getName())) return;
 
-        if (this.getProcess().getState() == TokenState.REQUEST) {
-            this.process.setState(TokenState.CRITICAL_SECTION);
-            while (this.getProcess().getState() != TokenState.RELEASE) {
+        if (this.state == TokenState.REQUEST) {
+            this.state = TokenState.CRITICAL_SECTION;
+            while (this.state != TokenState.RELEASE) {
                 Thread.sleep(500);
             }
             this.logger.info("Releasing the token");
@@ -220,8 +236,8 @@ public class Communicator {
      * This method will request the token. And stop the process until the token is received.
      */
     public void requestSC() throws InterruptedException {
-        this.getProcess().setState(TokenState.REQUEST);
-        while (this.getProcess().getState() == TokenState.REQUEST) {
+        this.state = TokenState.REQUEST;
+        while (this.state == TokenState.REQUEST) {
             Thread.sleep(500);
         }
     }
@@ -230,7 +246,7 @@ public class Communicator {
      * This method will release the token.
      */
     public void release() {
-        this.getProcess().setState(TokenState.RELEASE);
+        this.state = TokenState.RELEASE;
     }
 
 }

@@ -1,33 +1,33 @@
 package fr.usmb;
 
+import fr.usmb.process.Communicator;
 import fr.usmb.process.Process;
 
 import java.util.ArrayList;
 
-public class Launcher{
+public class Launcher {
 
-	private static final int runningTime = 5000;
+    private static final int runningTime = 5000;
 
-	public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
 
-		ArrayList<Process> processes = new ArrayList<Process>();
+        ArrayList<Process> processes = new ArrayList<Process>();
 
-		for(int i=0; i<Process.maxNbProcess; i++) {
-			processes.add(new Process("P"+i));
-		}
+        for (int i = 0; i < Communicator.maxNbProcess; i++) {
+            processes.add(new Process("P" + i));
+        }
 
-		// Get random process
-		Process randomProcess = processes.get((int)(Math.random() * Process.maxNbProcess));
+        // Get random process
+        Process randomProcess = processes.get((int) (Math.random() * Communicator.maxNbProcess));
 
+        try {
+            Thread.sleep(runningTime);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
-		try{
-			Thread.sleep(runningTime);
-		}catch(Exception e){
-			e.printStackTrace();
-		}
-
-		for(int i=0; i<Process.maxNbProcess; i++) {
-			processes.get(i).stop();
-		}
-	}
+        for (int i = 0; i < Communicator.maxNbProcess; i++) {
+            processes.get(i).stop();
+        }
+    }
 }
