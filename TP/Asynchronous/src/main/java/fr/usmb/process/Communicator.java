@@ -68,7 +68,7 @@ public class Communicator {
      *
      * @param message L'objet à diffuser
      */
-    public void broadcast(Message<?> message, boolean isSystemMessage) {
+    public <T> void broadcast(Message<T> message, boolean isSystemMessage) {
         try {
 
             if (!isSystemMessage) {
@@ -97,7 +97,7 @@ public class Communicator {
      * Envoie un message à un processus spécifique.
      * @param message {@link Message} Le message à envoyer.
      */
-    public void broadcast(Message<?> message){
+    public <T> void broadcast(Message<T> message){
         broadcast(message, false);
     }
 
@@ -119,6 +119,46 @@ public class Communicator {
         dedicatedMessage.setReceiver(to);
         this.logger.info("Sending message: " + message.getMessage() + " to " + to);
         this.process.getBus().postEvent(dedicatedMessage);
+    }
+
+    /**
+     * Send a message to a specific process.
+     *
+     * @param to      {@link String} The name of the process to send the message to.
+     * @param message {@link Message} The message to send.
+     * @param isSystemMessage {@link boolean} True if the message is a system message, false otherwise.
+     * @param <T>     {@link T} The type of the message.
+     */
+    public <T> void sendTo(String to, Message<T> message, boolean isSystemMessage) {
+        try {
+            if (!isSystemMessage) {
+                this.semaphore.acquire();
+                this.clock.increment();
+                message.setTimestamp(clock.get());
+            }
+            DedicatedMessage<T> dedicatedMessage = new DedicatedMessage<>(message.getMessage());
+            dedicatedMessage.setTimestamp(message.getTimestamp());
+            dedicatedMessage.setSender(this.process.getThread().getName());
+            dedicatedMessage.setReceiver(to);
+            this.logger.info("Sending message: " + message.getMessage() + " to " + to);
+            this.process.getBus().postEvent(dedicatedMessage);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            if (!isSystemMessage) {
+                this.semaphore.release();
+            }
+        }
+    }
+
+    /**
+     * Send a message to a specific process.
+     * @param to {@link String} The name of the process to send the message to.
+     * @param message {@link Message} The message to send.
+     * @param <T> 
+     */
+    public <T> void sendTo(String to, Message<T> message) {
+        sendTo(to, message, false);
     }
 
     /**
