@@ -91,7 +91,7 @@ public class Process implements Runnable {
                     }
                 }
                 if (this.getName() == "P2") {
-                    this.communicator.recevFromSync(msg, 0);
+                    this.communicator.recvFromSync(msg, 0);
                     this.communicator.sendToSync("OK", 0);
 
                     this.communicator.synchronize();
@@ -101,7 +101,7 @@ public class Process implements Runnable {
                         this.logger.info("Catched !");
                         this.communicator.broadcast("J'ai gagné !!!");
                     } else {
-                        msg = this.communicator.mailbox.getMsg();
+                        msg = this.communicator.getMailBox().getMessage();
                         this.logger.info(str(msg.getSender()) + " à eu le jeton en premier");
                     }
                     this.communicator.release();
