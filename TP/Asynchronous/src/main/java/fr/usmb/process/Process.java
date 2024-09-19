@@ -1,5 +1,6 @@
 package fr.usmb.process;
 
+import fr.usmb.messages.DedicatedMessage;
 import fr.usmb.messages.Message;
 import lombok.Getter;
 
@@ -65,28 +66,28 @@ public class Process implements Runnable {
                         System.out.println("Catched !");
                         this.communicator.broadcast("J'ai gagné !!!");
                     } else {
-                        msg = this.communicator.mailbox.getMsg();
+                        msg = this.communicator.getMailBox().getMessage();
                         System.out.println(str(msg.getSender()) + " à eu le jeton en premier");
                     }
-                    this.communicator.releaseSC();
+                    this.communicator.release();
 
                 }
                 if (this.getName() == "P1") {
                     if (!this.getMailBox().isEmpty()) {
-                        this.communicator.mailbox.getMessage();
+                        this.communicator.getMailBox().getMessage();
                         this.communicator.recevFromSync(msg, 0);
 
                         this.communicator.synchronize();
 
                         this.communicator.requestSC();
-                        if (this.communicator.mailbox.isEmpty()) {
-                            print("Catched !");
+                        if (this.communicator.getMailBox().isEmpty()) {
+                            this.logger.info("Catched !");
                             this.communicator.broadcast("J'ai gagné !!!");
                         } else {
-                            msg = this.communicator.mailbox.getMsg();
-                            print(str(msg.getSender()) + " à eu le jeton en premier");
+                            DedicatedMessage<?> message = this.communicator.getMailBox().getMessage();
+                            this.logger.info(message.getSender() + " à eu le jeton en premier");
                         }
-                        this.communicator.releaseSC();
+                        this.communicator.release();
                     }
                 }
                 if (this.getName() == "P2") {
@@ -96,14 +97,14 @@ public class Process implements Runnable {
                     this.communicator.synchronize();
 
                     this.communicator.requestSC();
-                    if (this.communicator.mailbox.isEmpty()) {
-                        zs
+                    if (this.communicator.getMailBox().isEmpty()) {
+                        this.logger.info("Catched !");
                         this.communicator.broadcast("J'ai gagné !!!");
                     } else {
                         msg = this.communicator.mailbox.getMsg();
-                        print(str(msg.getSender()) + " à eu le jeton en premier");
+                        this.logger.info(str(msg.getSender()) + " à eu le jeton en premier");
                     }
-                    this.communicator.releaseSC();
+                    this.communicator.release();
                 }
 
 
@@ -149,7 +150,7 @@ public class Process implements Runnable {
         return this.thread.getName();
     }
 
-    public List<Message<?>> getMailBox() {
+    public MailBox getMailBox() {
         return this.communicator.getMailBox();
     }
 

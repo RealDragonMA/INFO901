@@ -36,7 +36,7 @@ public class Communicator {
     private final Semaphore semaphore;
 
     @Getter
-    private final List<Message<?>> mailBox;
+    private final MailBox mailBox;
     private final List<String> syncReceived;
 
     public Communicator(Process process, ProcessLogger logger) {
@@ -45,7 +45,7 @@ public class Communicator {
         this.clock = new LamportClock();
         this.logger = logger;
         this.semaphore = new Semaphore(1);
-        this.mailBox = new ArrayList<>();
+        this.mailBox = new MailBox();
 
         this.bus = EventBusService.getInstance();
         this.bus.registerSubscriber(this);
@@ -186,26 +186,47 @@ public class Communicator {
     public <T> void broadcastSync(T data, int from) {
         if (this.getProcess().getId() == from) {
             try {
-                // Utilise la méthode broadcast pour envoyer le message à tous les autres processus
-                this.broadcast(data, false);
+                BroadcastMessage<T> broadcastMessage = new BroadcastMessage<>(data);
 
-                // Attendre la synchronisation de tous les processus
-                this.synchronize();
+                // Envoyer le message et incrémenter l'horloge
+                synchronized (this) {
+                    this.clock.increment();
+                    broadcastMessage.setTimestamp(clock.get());
+                }
 
-            } catch (Exception e) {
+                broadcastMessage.setSender(this.process.getName());
+                this.logger.info("Broadcasting synchronous message: " + broadcastMessage.getMessage());
+                this.bus.postEvent(broadcastMessage);
+
+                // Attendre que tous les processus confirment la réception
+                synchronized (syncReceived) {
+                    while (syncReceived.size() < Communicator.maxNbProcess - 1) {
+                        syncReceived.wait();
+                    }
+                }
+
+                syncReceived.clear(); // Réinitialiser pour la prochaine synchronisation
+
+                this.logger.info("Synchronous broadcast completed. All processes acknowledged receipt.");
+
+            } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                this.logger.error("Error during synchronous broadcast", e);
             }
         } else {
-            // Si ce n'est pas le processus émetteur, il doit simplement attendre la synchronisation
-            try {
-                this.synchronize();
-            } catch (Exception e) {
-                Thread.currentThread().interrupt();
-                this.logger.error("Error while waiting for synchronization in broadcastSync", e);
+            // Si ce n'est pas le processus 'from', il doit attendre de recevoir le message
+            synchronized (syncReceived) {
+                while (!syncReceived.contains(this.process.getName())) {
+                    try {
+                        syncReceived.wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        this.logger.error("Error while waiting for synchronous broadcast", e);
+                    }
+                }
             }
         }
     }
+
 
     /**
      * Send a synchronous message to a specific process.
@@ -215,20 +236,39 @@ public class Communicator {
      * @param dest {@link int} The identifier of the destination process.
      */
     public <T> void sendToSync(T data, int dest) {
+        String destProcessName = "P" + dest;
+
         try {
-            String destProcessName = "P" + dest;
+            DedicatedMessage<T> dedicatedMessage = new DedicatedMessage<>(data);
 
-            // Envoyer le message au processus cible
-            this.sendTo(destProcessName, data, false);
+            // Envoyer le message et incrémenter l'horloge
+            synchronized (this) {
+                this.clock.increment();
+                dedicatedMessage.setTimestamp(clock.get());
+            }
 
-            // Attendre la synchronisation avec le processus destinataire
-            this.synchronize();
+            dedicatedMessage.setSender(this.process.getName());
+            dedicatedMessage.setReceiver(destProcessName);
 
-        } catch (Exception e) {
+            this.logger.info("Sending synchronous message: " + dedicatedMessage.getMessage() + " to " + destProcessName);
+            this.bus.postEvent(dedicatedMessage);
+
+            // Attendre que le processus destinataire accuse réception
+            synchronized (syncReceived) {
+                while (!syncReceived.contains(destProcessName)) {
+                    syncReceived.wait();
+                }
+            }
+
+            syncReceived.clear(); // Réinitialiser après la réception
+
+            this.logger.info("Synchronous send completed. Process " + destProcessName + " acknowledged receipt.");
+
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            this.logger.error("Error during synchronous send", e);
         }
     }
+
 
 
 
@@ -267,6 +307,26 @@ public class Communicator {
         syncReceived.clear();
         this.logger.info("Process " + this.getProcess().getName() + " is synchronized with all other processes");
     }
+
+    public <T> void recvFromSync(int from) {
+        String fromProcessName = "P" + from;
+
+        synchronized (syncReceived) {
+            while (!syncReceived.contains(fromProcessName)) {
+                try {
+                    syncReceived.wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    this.logger.error("Error while waiting for synchronous message from " + fromProcessName, e);
+                }
+            }
+
+            syncReceived.clear(); // Réinitialiser après réception du message
+        }
+
+        this.logger.info("Message from " + fromProcessName + " received successfully.");
+    }
+
 
     /**
      * Method to handle synchronization messages.
