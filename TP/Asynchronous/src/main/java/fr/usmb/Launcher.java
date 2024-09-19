@@ -18,7 +18,7 @@ public class Launcher {
         }
 
         // Get random process
-        Process randomProcess = processes.get((int) (Math.random() * Communicator.maxNbProcess));
+        processes.get(processes.size() - 1).getCommunicator().initToken();
 
         try {
             Thread.sleep(runningTime);

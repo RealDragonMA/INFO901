@@ -2,10 +2,8 @@ package fr.usmb.process;
 
 import com.google.common.eventbus.Subscribe;
 import fr.usmb.EventBusService;
-import fr.usmb.messages.BroadcastMessage;
-import fr.usmb.messages.DedicatedMessage;
-import fr.usmb.messages.Message;
-import fr.usmb.messages.TokenMessage;
+import fr.usmb.messages.*;
+import fr.usmb.token.Token;
 import fr.usmb.token.TokenState;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -39,6 +37,7 @@ public class Communicator {
 
     @Getter
     private final List<Message<?>> mailBox;
+    private final List<String> syncReceived;
 
     public Communicator(Process process, ProcessLogger logger) {
 
@@ -52,6 +51,7 @@ public class Communicator {
         this.bus.registerSubscriber(this);
 
         this.state = TokenState.NULL;
+        this.syncReceived = new ArrayList<>();
 
     }
 
@@ -175,6 +175,10 @@ public class Communicator {
         sendTo(to, data, false);
     }
 
+
+
+
+
     /**
      * Send the token to the next process.
      *
@@ -183,9 +187,51 @@ public class Communicator {
     private void sendTokenToNextProcess(TokenMessage<?> tokenMessage) {
         String nextProcess = "P" + (this.getProcess().getId() + 1) % Communicator.maxNbProcess;
         tokenMessage.getToken().setHolder(nextProcess);
-        sendTo(nextProcess, tokenMessage);
+        sendTo(nextProcess, tokenMessage, true);
+        this.logger.info("Sending the token to " + nextProcess);
         this.bus.postEvent(tokenMessage);
     }
+
+    /**
+     * Synchronize all processes.
+     * This method will send a synchronization message to all other processes and wait for their response.
+     */
+    public void synchronize(){
+        SynchronizedMessage syncMessage = new SynchronizedMessage(this.getProcess().getName());
+        this.broadcast(syncMessage, true);
+
+        synchronized (syncReceived){
+            while (syncReceived.size() < Communicator.maxNbProcess - 1){
+                try {
+                    syncReceived.wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    this.logger.error("Error while waiting for synchronization", e);
+                }
+            }
+        }
+
+        syncReceived.clear();
+        this.logger.info("Process " + this.getProcess().getName() + " is synchronized with all other processes");
+    }
+
+    /**
+     * Method to handle synchronization messages.
+     *
+     * @param syncMessage {@link SynchronizedMessage} The message to handle.
+     */
+    @Subscribe
+    private void onSync(SynchronizedMessage syncMessage){
+        if(syncMessage.getFrom().equalsIgnoreCase(this.process.getName())) return;
+        synchronized (syncReceived){
+            syncReceived.add(syncMessage.getFrom());
+            this.logger.info("Received synchronization message from " + syncMessage.getFrom());
+            if(syncReceived.size() == Communicator.maxNbProcess - 1){
+                syncReceived.notifyAll();
+            }
+        }
+    }
+
 
     /**
      * Method to handle broadcast messages.
@@ -218,8 +264,11 @@ public class Communicator {
      */
     @Subscribe
     private void onToken(TokenMessage<?> tokenMessage) throws InterruptedException {
-        clock.update(tokenMessage.getTimestamp());
+
+        //clock.update(tokenMessage.getTimestamp());
         if (!tokenMessage.getToken().getHolder().equalsIgnoreCase(this.process.getName())) return;
+
+        this.logger.info("Received the token");
 
         if (this.state == TokenState.REQUEST) {
             this.state = TokenState.CRITICAL_SECTION;
@@ -229,6 +278,18 @@ public class Communicator {
             this.logger.info("Releasing the token");
         }
 
+        this.state = TokenState.NULL;
+        sendTokenToNextProcess(tokenMessage);
+    }
+
+    /**
+     * This method will initialize the token.
+     * The token will be sent to the next process.
+     */
+    public void initToken(){
+        Token token = new Token();
+        token.setHolder(this.process.getName());
+        TokenMessage<?> tokenMessage = new TokenMessage<>(token);
         sendTokenToNextProcess(tokenMessage);
     }
 

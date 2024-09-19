@@ -51,59 +51,59 @@ public class Process implements Runnable {
                 Thread.sleep(500);
 
                 if (this.getName().equals("P0")) {
-                    this.communicator.sendTo("j'appelle 2 et je te recontacte après", 1);
-
-                    this.communicator.sendToSync("J'ai laissé un message à 2, je le rappellerai après, on se sychronise tous et on attaque la partie ?", 2);
-                    this.communicator.recevFromSync(msg, 2);
-
-                    this.communicator.sendToSync("2 est OK pour jouer, on se synchronise et c'est parti!", 1);
-
-                    this.communicator.synchronize();
-
-                    this.communicator.requestSC();
-                    if (this.getMailBox().isEmpty()) {
-                        System.out.println("Catched !");
-                        this.communicator.broadcast("J'ai gagné !!!");
-                    } else {
-                        msg = this.communicator.mailbox.getMsg();
-                        System.out.println(str(msg.getSender()) + " à eu le jeton en premier");
-                    }
-                    this.communicator.releaseSC();
+//                    this.communicator.sendTo("j'appelle 2 et je te recontacte après", 1);
+//
+//                    this.communicator.sendToSync("J'ai laissé un message à 2, je le rappellerai après, on se sychronise tous et on attaque la partie ?", 2);
+//                    this.communicator.recevFromSync(msg, 2);
+//
+//                    this.communicator.sendToSync("2 est OK pour jouer, on se synchronise et c'est parti!", 1);
+//
+//                    this.communicator.synchronize();
+//
+//                    this.communicator.requestSC();
+//                    if (this.getMailBox().isEmpty()) {
+//                        System.out.println("Catched !");
+//                        this.communicator.broadcast("J'ai gagné !!!");
+//                    } else {
+//                        msg = this.communicator.mailbox.getMsg();
+//                        System.out.println(str(msg.getSender()) + " à eu le jeton en premier");
+//                    }
+//                    this.communicator.releaseSC();
 
                 }
                 if (this.getName() == "P1") {
-                    if (!this.getMailBox().isEmpty()) {
-                        this.communicator.mailbox.getMessage();
-                        this.communicator.recevFromSync(msg, 0);
-
-                        this.communicator.synchronize();
-
-                        this.communicator.requestSC();
-                        if (this.communicator.mailbox.isEmpty()) {
-                            print("Catched !");
-                            this.communicator.broadcast("J'ai gagné !!!");
-                        } else {
-                            msg = this.communicator.mailbox.getMsg();
-                            print(str(msg.getSender()) + " à eu le jeton en premier");
-                        }
-                        this.communicator.releaseSC();
-                    }
+//                    if (!this.getMailBox().isEmpty()) {
+//                        this.communicator.mailbox.getMessage();
+//                        this.communicator.recevFromSync(msg, 0);
+//
+//                        this.communicator.synchronize();
+//
+//                        this.communicator.requestSC();
+//                        if (this.communicator.mailbox.isEmpty()) {
+//                            print("Catched !");
+//                            this.communicator.broadcast("J'ai gagné !!!");
+//                        } else {
+//                            msg = this.communicator.mailbox.getMsg();
+//                            print(str(msg.getSender()) + " à eu le jeton en premier");
+//                        }
+//                        this.communicator.releaseSC();
+//                    }
                 }
                 if (this.getName() == "P2") {
-                    this.communicator.recevFromSync(msg, 0);
-                    this.communicator.sendToSync("OK", 0);
-
-                    this.communicator.synchronize();
-
-                    this.communicator.requestSC();
-                    if (this.communicator.mailbox.isEmpty()) {
-                        print("Catched !");
-                        this.communicator.broadcast("J'ai gagné !!!");
-                    } else {
-                        msg = this.communicator.mailbox.getMsg();
-                        print(str(msg.getSender()) + " à eu le jeton en premier");
-                    }
-                    this.communicator.releaseSC();
+//                    this.communicator.recevFromSync(msg, 0);
+//                    this.communicator.sendToSync("OK", 0);
+//
+//                    this.communicator.synchronize();
+//
+//                    this.communicator.requestSC();
+//                    if (this.communicator.mailbox.isEmpty()) {
+//                        print("Catched !");
+//                        this.communicator.broadcast("J'ai gagné !!!");
+//                    } else {
+//                        msg = this.communicator.mailbox.getMsg();
+//                        print(str(msg.getSender()) + " à eu le jeton en premier");
+//                    }
+//                    this.communicator.releaseSC();
                 }
 
 

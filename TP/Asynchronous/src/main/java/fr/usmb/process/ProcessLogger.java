@@ -14,7 +14,7 @@ public class ProcessLogger {
      * @param message The message to log.
      */
     public void info(String message) {
-        System.out.println("[Process " + process.getThread().getName() + "] " + message);
+        System.out.println("[Process " + process.getName() + "] " + message);
     }
 
     /**
@@ -23,7 +23,7 @@ public class ProcessLogger {
      * @param e The exception that was thrown.
      */
     public void error(String message, Exception e) {
-        System.err.println("[Process " + process.getThread().getName() + "] ERROR: " + message);
+        System.err.println("[Process " + process.getName() + "] ERROR: " + message);
         e.printStackTrace();
     }
 

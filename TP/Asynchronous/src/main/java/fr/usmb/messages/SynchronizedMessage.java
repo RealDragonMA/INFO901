@@ -1,13 +1,14 @@
 package fr.usmb.messages;
 
+import lombok.Getter;
+
+@Getter
 public class SynchronizedMessage extends Message<String> {
 
-    public enum Type {
-        REQUEST,
-        COMPLETE
-    }
+    private final String from;
 
-    public SynchronizedMessage(Type type) {
-        super(type.toString());
+    public SynchronizedMessage(String from){
+        super("Synchronized message");
+        this.from = from;
     }
 }

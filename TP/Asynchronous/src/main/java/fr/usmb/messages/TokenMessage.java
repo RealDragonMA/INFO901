@@ -10,8 +10,8 @@ public class TokenMessage<T> extends Message<T>{
 
     private Token token;
 
-    public TokenMessage(Token token, T message) {
-        super(message);
+    public TokenMessage(Token token) {
+        super(null);
         this.token = token;
     }
 }
