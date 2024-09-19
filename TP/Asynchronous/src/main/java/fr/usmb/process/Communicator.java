@@ -176,6 +176,59 @@ public class Communicator {
     }
 
 
+    /**
+     * Send a synchronous broadcast message to all processes.
+     * The process with the identifier 'from' will send the message and wait until all processes acknowledge receipt.
+     *
+     * @param data {@link Object} The object to broadcast.
+     * @param from {@link int} The identifier of the process sending the message.
+     */
+    public <T> void broadcastSync(T data, int from) {
+        if (this.getProcess().getId() == from) {
+            try {
+                // Utilise la méthode broadcast pour envoyer le message à tous les autres processus
+                this.broadcast(data, false);
+
+                // Attendre la synchronisation de tous les processus
+                this.synchronize();
+
+            } catch (Exception e) {
+                Thread.currentThread().interrupt();
+                this.logger.error("Error during synchronous broadcast", e);
+            }
+        } else {
+            // Si ce n'est pas le processus émetteur, il doit simplement attendre la synchronisation
+            try {
+                this.synchronize();
+            } catch (Exception e) {
+                Thread.currentThread().interrupt();
+                this.logger.error("Error while waiting for synchronization in broadcastSync", e);
+            }
+        }
+    }
+
+    /**
+     * Send a synchronous message to a specific process.
+     * The sender will wait until the destination process acknowledges receipt of the message.
+     *
+     * @param data {@link Object} The object to send.
+     * @param dest {@link int} The identifier of the destination process.
+     */
+    public <T> void sendToSync(T data, int dest) {
+        try {
+            String destProcessName = "P" + dest;
+
+            // Envoyer le message au processus cible
+            this.sendTo(destProcessName, data, false);
+
+            // Attendre la synchronisation avec le processus destinataire
+            this.synchronize();
+
+        } catch (Exception e) {
+            Thread.currentThread().interrupt();
+            this.logger.error("Error during synchronous send", e);
+        }
+    }
 
 
 
