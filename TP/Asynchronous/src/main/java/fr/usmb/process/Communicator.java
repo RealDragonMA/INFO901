@@ -57,7 +57,9 @@ public class Communicator {
     }
 
     /**
-     * Increment the clock.
+     * Increments the Lamport clock. This method ensures mutual exclusion by acquiring a semaphore
+     * before incrementing the clock. It is used to ensure that the clock is updated consistently
+     * across multiple threads.
      */
     public void incClock() {
         try {
@@ -72,9 +74,10 @@ public class Communicator {
     }
 
     /**
-     * Get the clock.
+     * Retrieves the current value of the Lamport clock. This method is protected by a semaphore to
+     * ensure that the clock is accessed safely in a concurrent environment.
      *
-     * @return {@link int} The clock.
+     * @return The current value of the Lamport clock.
      */
     public int getClock() {
         try {
@@ -91,10 +94,13 @@ public class Communicator {
 
 
     /**
-     * Envoie un message à tous les autres processus (broadcast).
-     * Seuls les messages non système modifient l'horloge de Lamport.
+     * Sends a broadcast message to all processes. The Lamport clock is incremented unless the message
+     * is a system message, in which case the clock remains unaffected. This method posts the message
+     * to the event bus for delivery.
      *
-     * @param data L'objet à diffuser
+     * @param data The data to broadcast.
+     * @param isSystemMessage True if the message is a system message, false otherwise.
+     * @param <T> The type of the message payload.
      */
     public <T> void broadcast(T data, boolean isSystemMessage) {
         try {
@@ -123,21 +129,25 @@ public class Communicator {
     }
 
     /**
-     * Envoie un message à un processus spécifique.
+     * Sends a broadcast message to all processes, treating the message as a user message by default.
+     * This will increment the Lamport clock and post the message to the event bus for delivery.
      *
-     * @param data {@link Message} Le message à envoyer.
+     * @param data The data to broadcast.
+     * @param <T> The type of the message payload.
      */
     public <T> void broadcast(T data) {
         broadcast(data, false);
     }
 
     /**
-     * Send a message to a specific process.
+     * Sends a message to a specific process. The Lamport clock is incremented unless the message
+     * is a system message. This method acquires a semaphore to ensure safe access to the clock
+     * and posts the message to the event bus for delivery.
      *
-     * @param to              {@link String} The name of the process to send the message to.
-     * @param data            {@link Message} The message to send.
-     * @param isSystemMessage {@link boolean} True if the message is a system message, false otherwise.
-     * @param <T>             {@link T} The type of the message.
+     * @param to The ID of the destination process.
+     * @param data The message to send.
+     * @param isSystemMessage True if the message is a system message, false otherwise.
+     * @param <T> The type of the message payload.
      */
     public <T> void sendTo(int to, T data, boolean isSystemMessage) {
         try {
@@ -166,11 +176,12 @@ public class Communicator {
     }
 
     /**
-     * Send a message to a specific process.
+     * Sends a message to a specific process, treating the message as a user message by default.
+     * This will increment the Lamport clock and post the message to the event bus for delivery.
      *
-     * @param to   {@link String} The name of the process to send the message to.
-     * @param data {@link Message} The message to send.
-     * @param <T>  {@link T} The type of the message.
+     * @param to The ID of the destination process.
+     * @param data The message to send.
+     * @param <T> The type of the message payload.
      */
     public <T> void sendTo(int to, T data) {
         sendTo(to, data, false);
@@ -178,11 +189,13 @@ public class Communicator {
 
 
     /**
-     * Send a synchronous broadcast message to all processes.
-     * The process with the identifier 'from' will send the message and wait until all processes acknowledge receipt.
+     * Sends a synchronous broadcast message to all processes. If the current process is the sender,
+     * it waits for acknowledgment from all other processes. Otherwise, it waits for the broadcast
+     * message to arrive. This method blocks the calling thread until synchronization is complete.
      *
-     * @param data {@link Object} The object to broadcast.
-     * @param from {@link int} The identifier of the process sending the message.
+     * @param data The data to broadcast synchronously.
+     * @param from The ID of the sending process.
+     * @param <T> The type of the message payload.
      */
     public <T> void broadcastSync(T data, int from) {
         if (this.id == from) {
@@ -230,11 +243,13 @@ public class Communicator {
 
 
     /**
-     * Send a synchronous message to a specific process.
-     * The sender will wait until the destination process acknowledges receipt of the message.
+     * Sends a message synchronously to a specific process. The sender will wait until the destination
+     * process acknowledges receipt of the message. This method blocks the calling thread until
+     * the acknowledgment is received.
      *
-     * @param data {@link Object} The object to send.
-     * @param dest {@link int} The identifier of the destination process.
+     * @param dest The ID of the destination process.
+     * @param data The message to send.
+     * @param <T> The type of the message payload.
      */
     public <T> void sendToSync(int dest, T data) {
         String destProcessName = "P" + dest;
@@ -274,9 +289,10 @@ public class Communicator {
 
 
     /**
-     * Send the token to the next process.
+     * Sends the token to the next process in the logical ring. This method posts a system message
+     * (token) to the event bus without incrementing the Lamport clock, as token messages are system-related.
      *
-     * @param tokenMessage {@link TokenMessage} The token message to send.
+     * @param tokenMessage The token message to send to the next process.
      */
     private void sendTokenToNextProcess(TokenMessage<?> tokenMessage) {
         int nextProcess = (this.id + 1) % Communicator.maxNbProcess;
@@ -287,8 +303,9 @@ public class Communicator {
     }
 
     /**
-     * Synchronize all processes.
-     * This method will send a synchronization message to all other processes and wait for their response.
+     * Synchronizes the current process with all other processes. This method sends a synchronization
+     * message to all processes and blocks until all processes have reached the synchronization point.
+     * It waits for acknowledgment from all other processes before proceeding.
      */
     public void synchronize(){
         SynchronizedMessage syncMessage = new SynchronizedMessage(this.name);
@@ -309,6 +326,15 @@ public class Communicator {
         this.logger.info("Process " + this.name + " is synchronized with all other processes");
     }
 
+    /**
+     * Receives a synchronous message from a specific process. This method blocks until a message
+     * from the specified process arrives in the mailbox. Once the message is received, it is removed
+     * from the mailbox and returned to the caller.
+     *
+     * @param from The ID of the process from which the message is expected.
+     * @return The message received from the specified process.
+     * @param <T> The type of the message payload.
+     */
     public <T> Message<T> receiveFromSync(int from) {
         String fromProcessName = "P" + from;
         Message<T> receivedMessage = null;
@@ -346,9 +372,11 @@ public class Communicator {
 
 
     /**
-     * Method to handle synchronization messages.
+     * Event handler for synchronization messages. When a synchronization message is received from
+     * another process, this method adds the sender to the list of synchronized processes and notifies
+     * waiting threads if all processes have synchronized.
      *
-     * @param syncMessage {@link SynchronizedMessage} The message to handle.
+     * @param syncMessage The synchronization message received.
      */
     @Subscribe
     private void onSync(SynchronizedMessage syncMessage){
@@ -364,9 +392,11 @@ public class Communicator {
 
 
     /**
-     * Method to handle broadcast messages.
+     * Event handler for broadcast messages. This method is triggered when a broadcast message is received.
+     * It updates the Lamport clock using the message's timestamp, adds the message to the mailbox,
+     * and logs the receipt of the message.
      *
-     * @param message {@link BroadcastMessage} The message to handle.
+     * @param message The broadcast message received.
      */
     @Subscribe
     private void onBroadcast(BroadcastMessage<?> message) {
@@ -377,9 +407,10 @@ public class Communicator {
     }
 
     /**
-     * Method to handle dedicated messages.
+     * Event handler for dedicated (point-to-point) messages. When a message is received for the current
+     * process, this method updates the Lamport clock, adds the message to the mailbox, and logs the receipt.
      *
-     * @param message {@link DedicatedMessage} The message to handle.
+     * @param message The dedicated message received.
      */
     @Subscribe
     private void onReceive(DedicatedMessage<?> message) {
@@ -390,7 +421,12 @@ public class Communicator {
     }
 
     /**
-     * This method is triggered when the tokenMessage is received.
+     * Event handler for token messages. This method is triggered when a token is received by the current
+     * process. If the process is in the "REQUEST" state, it enters the critical section and waits
+     * until it is ready to release the token. Once released, the token is passed to the next process.
+     *
+     * @param tokenMessage The token message received.
+     * @throws InterruptedException If the thread is interrupted while waiting to release the token.
      */
     @Subscribe
     private void onToken(TokenMessage<?> tokenMessage) throws InterruptedException {
@@ -413,8 +449,8 @@ public class Communicator {
     }
 
     /**
-     * This method will initialize the token.
-     * The token will be sent to the next process.
+     * Initializes the token by assigning it to the current process and sending it to the next process
+     * in the ring. This method is used to start the token ring algorithm for managing the critical section.
      */
     public void initToken(){
         Token token = new Token();
@@ -424,7 +460,10 @@ public class Communicator {
     }
 
     /**
-     * This method will request the token. And stop the process until the token is received.
+     * Requests access to the critical section. This method sets the process state to "REQUEST" and blocks
+     * until the token is received, allowing the process to enter the critical section.
+     *
+     * @throws InterruptedException If the thread is interrupted while waiting for the token.
      */
     public void requestSC() throws InterruptedException {
         this.state = TokenState.REQUEST;
@@ -434,7 +473,8 @@ public class Communicator {
     }
 
     /**
-     * This method will release the token.
+     * Releases the token after the process has finished its critical section. This method sets the
+     * process state to "RELEASE", allowing the token to be passed to the next process.
      */
     public void releaseSC() {
         this.state = TokenState.RELEASE;
