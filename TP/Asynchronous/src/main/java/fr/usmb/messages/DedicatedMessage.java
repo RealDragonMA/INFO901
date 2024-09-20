@@ -7,10 +7,9 @@ import lombok.Setter;
 @Setter
 public class DedicatedMessage<T> extends Message<T> {
 
-    private String sender;
     private String receiver;
 
-    public DedicatedMessage(T message) {
-        super(message);
+    public DedicatedMessage(T message, String sender, String receiver) {
+        super(message, sender);
     }
 }

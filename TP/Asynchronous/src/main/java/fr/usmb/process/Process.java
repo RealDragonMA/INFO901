@@ -4,8 +4,6 @@ import fr.usmb.messages.DedicatedMessage;
 import fr.usmb.messages.Message;
 import lombok.Getter;
 
-import java.util.List;
-
 /**
  * This class represents a process that runs in a separate thread and communicates with other
  * processes using an event bus. It implements the Runnable interface to allow multi-threading.
@@ -43,7 +41,6 @@ public class Process implements Runnable {
      * It will run until the alive flag is set to false.
      */
     public void run() {
-        int loop = 0;
 
         System.out.println(Thread.currentThread().getName() + " id :" + this.getId());
 
@@ -55,7 +52,7 @@ public class Process implements Runnable {
                     this.communicator.sendTo("j'appelle 2 et je te recontacte après", 1);
 
                     this.communicator.sendToSync("J'ai laissé un message à 2, je le rappellerai après, on se sychronise tous et on attaque la partie ?", 2);
-                    this.communicator.recevFromSync(msg, 2);
+                    this.communicator.recvFromSync(msg, 2);
 
                     this.communicator.sendToSync("2 est OK pour jouer, on se synchronise et c'est parti!", 1);
 
@@ -66,16 +63,16 @@ public class Process implements Runnable {
                         System.out.println("Catched !");
                         this.communicator.broadcast("J'ai gagné !!!");
                     } else {
-                        msg = this.communicator.getMailBox().getMessage();
-                        System.out.println(str(msg.getSender()) + " à eu le jeton en premier");
+                        Message<Object> message = this.communicator.getMailBox().getMessage();
+                        System.out.println(message.getMessage() + " à eu le jeton en premier");
                     }
                     this.communicator.release();
 
                 }
                 if (this.getName() == "P1") {
                     if (!this.getMailBox().isEmpty()) {
-                        this.communicator.getMailBox().getMessage();
-                        this.communicator.recevFromSync(msg, 0);
+                        Message<Object> message = this.communicator.getMailBox().getMessage();
+                        this.communicator.recvFromSync(message, 0);
 
                         this.communicator.synchronize();
 
@@ -101,8 +98,8 @@ public class Process implements Runnable {
                         this.logger.info("Catched !");
                         this.communicator.broadcast("J'ai gagné !!!");
                     } else {
-                        msg = this.communicator.getMailBox().getMessage();
-                        this.logger.info(str(msg.getSender()) + " à eu le jeton en premier");
+                        Message<Object> message = this.communicator.getMailBox().getMessage();
+                        this.logger.info(message.getSender() + " à eu le jeton en premier");
                     }
                     this.communicator.release();
                 }
@@ -111,7 +108,6 @@ public class Process implements Runnable {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            loop++;
         }
 
         System.out.println(Thread.currentThread().getName() + " stopped");

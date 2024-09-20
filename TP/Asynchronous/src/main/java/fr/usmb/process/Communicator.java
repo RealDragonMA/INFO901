@@ -98,7 +98,7 @@ public class Communicator {
     public <T> void broadcast(T data, boolean isSystemMessage) {
         try {
 
-            BroadcastMessage<T> broadcastMessage = new BroadcastMessage<>(data);
+            BroadcastMessage<T> broadcastMessage = new BroadcastMessage<>(data, this.process.getName());
 
             if (!isSystemMessage) {
                 this.semaphore.acquire();
@@ -141,7 +141,7 @@ public class Communicator {
     public <T> void sendTo(String to, T data, boolean isSystemMessage) {
         try {
 
-            DedicatedMessage<T> dedicatedMessage = new DedicatedMessage<>(data);
+            DedicatedMessage<T> dedicatedMessage = new DedicatedMessage<>(data, this.process.getName(), to);
 
             if (!isSystemMessage) {
                 this.semaphore.acquire();
@@ -186,7 +186,7 @@ public class Communicator {
     public <T> void broadcastSync(T data, int from) {
         if (this.getProcess().getId() == from) {
             try {
-                BroadcastMessage<T> broadcastMessage = new BroadcastMessage<>(data);
+                BroadcastMessage<T> broadcastMessage = new BroadcastMessage<>(data, this.process.getName());
 
                 // Envoyer le message et incrémenter l'horloge
                 synchronized (this) {
@@ -239,7 +239,7 @@ public class Communicator {
         String destProcessName = "P" + dest;
 
         try {
-            DedicatedMessage<T> dedicatedMessage = new DedicatedMessage<>(data);
+            DedicatedMessage<T> dedicatedMessage = new DedicatedMessage<>(data, this.process.getName(), destProcessName);
 
             // Envoyer le message et incrémenter l'horloge
             synchronized (this) {
@@ -335,10 +335,10 @@ public class Communicator {
      */
     @Subscribe
     private void onSync(SynchronizedMessage syncMessage){
-        if(syncMessage.getFrom().equalsIgnoreCase(this.process.getName())) return;
+        if(syncMessage.getSender().equalsIgnoreCase(this.process.getName())) return;
         synchronized (syncReceived){
-            syncReceived.add(syncMessage.getFrom());
-            this.logger.info("Received synchronization message from " + syncMessage.getFrom());
+            syncReceived.add(syncMessage.getSender());
+            this.logger.info("Received synchronization message from " + syncMessage.getSender());
             if(syncReceived.size() == Communicator.maxNbProcess - 1){
                 syncReceived.notifyAll();
             }
@@ -402,7 +402,7 @@ public class Communicator {
     public void initToken(){
         Token token = new Token();
         token.setHolder(this.process.getName());
-        TokenMessage<?> tokenMessage = new TokenMessage<>(token);
+        TokenMessage<?> tokenMessage = new TokenMessage<>(token, this.process.getName());
         sendTokenToNextProcess(tokenMessage);
     }
 

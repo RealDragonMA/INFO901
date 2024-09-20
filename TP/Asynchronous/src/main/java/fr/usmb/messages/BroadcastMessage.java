@@ -7,9 +7,7 @@ import lombok.Setter;
 @Setter
 public class BroadcastMessage<T> extends Message<T>{
 
-    private String sender;
-
-    public BroadcastMessage(T message) {
-        super(message);
+    public BroadcastMessage(T message, String sender) {
+        super(message, sender);
     }
 }
