@@ -309,24 +309,40 @@ public class Communicator {
         this.logger.info("Process " + this.name + " is synchronized with all other processes");
     }
 
-    public <T> void receiveFromSync(Message<T> message, int from) {
+    public <T> Message<T> receiveFromSync(int from) {
         String fromProcessName = "P" + from;
+        Message<T> receivedMessage = null;
 
-        synchronized (syncReceived) {
-            while (!syncReceived.contains(fromProcessName)) {
+        synchronized (mailBox) {
+            // Attendre jusqu'à recevoir un message provenant du processus "from"
+            while (receivedMessage == null) {
                 try {
-                    syncReceived.wait();
+                    // Parcourir la boîte aux lettres pour trouver un message venant de "fromProcessName"
+                    for (Message<?> msg : mailBox.getMessages()) {
+                        if (msg.getSender().equalsIgnoreCase(fromProcessName)) {
+                            receivedMessage = (Message<T>) msg;
+                            break; // Quitter la boucle une fois le message trouvé
+                        }
+                    }
+
+                    if (receivedMessage == null) {
+                        // Si aucun message trouvé, attendre une notification d'un nouveau message
+                        mailBox.wait();
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    this.logger.error("Error while waiting for synchronous message from " + fromProcessName, e);
+                    logger.error("Error while waiting for message from " + fromProcessName, e);
                 }
             }
 
-            syncReceived.clear(); // Réinitialiser après réception du message
+            // Une fois le message trouvé, on le retire de la boîte aux lettres
+            mailBox.remove(receivedMessage);
         }
 
-        this.logger.info("Message from " + fromProcessName + " received successfully.");
+        logger.info("Synchronous message from " + fromProcessName + " received.");
+        return receivedMessage;
     }
+
 
 
     /**

@@ -40,7 +40,12 @@ public class Process implements Runnable {
      * It will run until the alive flag is set to false.
      */
     public void run() {
+        int loop = 0;
+
+        this.logger.info(Thread.currentThread().getName() + " id :" + this.getId());
+
         while (this.alive) {
+            this.logger.info(Thread.currentThread().getName() + " Loop : " + loop);
             try {
                 Thread.sleep(500);
 
@@ -48,7 +53,7 @@ public class Process implements Runnable {
                     this.communicator.sendTo(1, "j'appelle 2 et je te recontacte après");
 
                     this.communicator.sendToSync(2, "J'ai laissé un message à 2, je le rappellerai après, on se sychronise tous et on attaque la partie ?");
-                    this.communicator.receiveFromSync(msg, 2);
+                    Message<Object> msg = this.communicator.receiveFromSync(2);
 
                     this.communicator.sendToSync(1, "2 est OK pour jouer, on se synchronise et c'est parti!");
 
@@ -60,15 +65,15 @@ public class Process implements Runnable {
                         this.communicator.broadcast("J'ai gagné !!!");
                     } else {
                         Message<Object> message = this.communicator.getMailBox().getMessage();
-                        System.out.println(message.getSender() + " à eu le jeton en premier");
+                        this.logger.info(msg.getSender() + " à eu le jeton en premier");
                     }
                     this.communicator.releaseSC();
 
                 }
                 if (this.getName().equalsIgnoreCase("P1")) {
                     if (!this.communicator.getMailBox().isEmpty()) {
-                        Message<Object> message = this.communicator.getMailBox().getMessage();
-                        this.communicator.receiveFromSync(message, 0);
+                        this.communicator.getMailBox().getMessage();
+                        Message<Object> msg = this.communicator.receiveFromSync(0);
 
                         this.communicator.synchronize();
 
@@ -77,14 +82,14 @@ public class Process implements Runnable {
                             this.logger.info("Catched !");
                             this.communicator.broadcast("J'ai gagné !!!");
                         } else {
-                            Message<Object> message1 = this.communicator.getMailBox().getMessage();
-                            this.logger.info(message1.getSender() + " à eu le jeton en premier");
+                            msg = this.communicator.getMailBox().getMessage();
+                            this.logger.info(msg.getSender() + " à eu le jeton en premier");
                         }
                         this.communicator.releaseSC();
                     }
                 }
                 if (this.getName().equalsIgnoreCase("P2")) {
-                    this.communicator.receiveFromSync(msg, 0);
+                    Message<Object> msg = this.communicator.receiveFromSync(0);
                     this.communicator.sendToSync(0, "OK");
 
                     this.communicator.synchronize();
@@ -94,8 +99,8 @@ public class Process implements Runnable {
                         this.logger.info("Catched !");
                         this.communicator.broadcast("J'ai gagné !!!");
                     } else {
-                        Message<Object> message = this.communicator.getMailBox().getMessage();
-                        this.logger.info(message.getSender() + " à eu le jeton en premier");
+                        msg = this.communicator.getMailBox().getMessage();
+                        this.logger.info(msg.getSender() + " à eu le jeton en premier");
                     }
                     this.communicator.releaseSC();
                 }
@@ -105,6 +110,7 @@ public class Process implements Runnable {
                 this.logger.error("Error in process loop", e);
             }
         }
+
         this.logger.info(Thread.currentThread().getName() + " stopped");
         this.dead = true;
     }

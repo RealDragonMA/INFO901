@@ -1,6 +1,7 @@
 package fr.usmb.process;
 
 import fr.usmb.messages.Message;
+import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,10 @@ public class MailBox {
         Message<T> message = (Message<T>) this.mailBox.get(0);
         this.removeAtIndex(0);
         return message;
+    }
+
+    public List<Message<?>> getMessages(){
+        return this.mailBox;
     }
 
     public boolean isEmpty(){
